@@ -63,7 +63,7 @@ class Env(ppo.control_flow.env.Env):
                 np.array(
                     [
                         [
-                            len(self.control_flow_types),
+                            len(Line.types),
                             1 + len(self.behaviors),
                             1 + len(self.items),
                             1 + self.max_loops,
@@ -128,9 +128,8 @@ class Env(ppo.control_flow.env.Env):
                 condition_evaluations += [evaluation]
             return evaluation
 
-    def generators(self,) -> Tuple[Iterator[State], List[Line]]:
+    def generators(self) -> Tuple[Iterator[State], List[Line]]:
         line_types = self.choose_line_types()
-
         # if there are too many while loops,
         # all items will be eliminated and tasks become impossible
         while_count = 0
@@ -174,6 +173,9 @@ class Env(ppo.control_flow.env.Env):
                 yield j, t
                 j = line_transitions[j][int(t)]
 
+        index_truthiness = list(index_truthiness_generator())
+        lines = [l(None) for l in line_types]  # instantiate line types
+
         blocks = defaultdict(list)
         whiles = []
         for i, line_type in enumerate(line_types):
@@ -185,8 +187,6 @@ class Env(ppo.control_flow.env.Env):
                 for w in whiles:
                     blocks[w].append(i)
 
-        lines = [l(None) for l in line_types]  # instantiate line types
-
         # select line inside while blocks to be a build behavior
         # so as to prevent infinite while loops
         while_index = {}  # type: Dict[int, line]
@@ -196,13 +196,11 @@ class Env(ppo.control_flow.env.Env):
 
         # go through lines in reverse to assign ids and put objects in the world
         existing = list(
-            self.random.choice(
-                self.items, size=len(self.items) - line_types.count(While) - 1
-            )
+            self.random.choice(self.items, size=len(self.items) - while_count - 1)
         )
         non_existing = list(set(self.items) - set(existing))
+
         world = Counter()
-        index_truthiness = list(index_truthiness_generator())
         for i, truthy in reversed(index_truthiness):
             line = lines[i]
             if type(line) is Subtask:
