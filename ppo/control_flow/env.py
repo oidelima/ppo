@@ -27,8 +27,6 @@ State = namedtuple("State", "obs prev ptr  term")
 
 
 class Env(gym.Env, ABC):
-    pairs = {If: EndIf, Else: EndIf, While: EndWhile, Loop: EndLoop}
-
     def __init__(
         self,
         min_lines,
@@ -88,7 +86,7 @@ class Env(gym.Env, ABC):
                 yield Subtask(i)
             for i in range(1, max_loops + 1):
                 yield Loop(i)
-            for line_type in self.control_flow_types:
+            for line_type in self.line_types:
                 if line_type not in (Subtask, Loop):
                     yield line_type(0)
 
@@ -103,7 +101,12 @@ class Env(gym.Env, ABC):
             )
         )
 
+    @property
+    def line_types(self):
+        return list(Line.types)
+
     def reset(self):
+        self.i += 1
         self.iterator = self.generator()
         s, r, t, i = next(self.iterator)
         return s
