@@ -53,6 +53,7 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
         gate_stride,
         observation_space,
         lower_level_load_path,
+        lower_embed_size,
         num_conv_layers,
         kernel_size,
         stride,
@@ -91,9 +92,7 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
             in_channels=d, out_channels=conv_hidden_size, kernel_size=self.kernel_size
         )
         self.embed_lower = nn.Embedding(
-            self.action_space_nvec.lower + 1,
-            # encoder_hidden_size
-            gate_hidden_size,
+            self.action_space_nvec.lower + 1, lower_embed_size,
         )
         d, h, w = observation_space.obs.shape
         pool_input = int((h - kernel_size) / stride + 1)
@@ -148,7 +147,7 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
             conv_hidden_size * gate_conv_kernel_size ** 2 * gate_hidden_size,
         )
         self.conv_bias = nn.Parameter(torch.zeros(gate_hidden_size))
-        self.linear2 = nn.Linear(self.task_embed_size + gate_hidden_size, hidden2)
+        self.linear2 = nn.Linear(self.task_embed_size + lower_embed_size, hidden2)
         self.linear3 = nn.Sequential(
             Flatten(), nn.Linear(conv_hidden_size * output_dim2 ** 2, hidden3)
         )

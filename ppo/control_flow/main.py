@@ -141,6 +141,7 @@ def control_flow_args():
     parsers.agent.add_argument("--hidden2", type=int, required=True)
     parsers.agent.add_argument("--conv-hidden-size", type=int, required=True)
     parsers.agent.add_argument("--task-embed-size", type=int, required=True)
+    parsers.agent.add_argument("--lower-embed-size", type=int, required=True)
     parsers.agent.add_argument("--gate-hidden-size", type=int, required=True)
     parsers.agent.add_argument("--gate-stride", type=int, required=True)
     parsers.agent.add_argument("--num-encoding-layers", type=int, required=True)
