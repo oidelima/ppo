@@ -11,10 +11,8 @@ import ppo.control_flow.multi_step.abstract_recurrence as abstract_recurrence
 import ppo.control_flow.recurrence as recurrence
 from ppo.agent import Agent
 from ppo.control_flow.env import Action
-from ppo.control_flow.lstm import LSTMCell
 from ppo.control_flow.multi_step.env import Obs
 from ppo.distributions import FixedCategorical, Categorical
-from ppo.layers import Flatten
 from ppo.utils import init_
 
 RecurrentState = namedtuple(
@@ -59,9 +57,9 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
         **kwargs,
     ):
         self.concat = concat
-        self.gate_coef = gate_coef
         if not concat:
             conv_hidden_size = hidden_size
+        self.gate_coef = gate_coef
         self.conv_hidden_size = conv_hidden_size
         self.kernel_size = kernel_size
         self.stride = stride
