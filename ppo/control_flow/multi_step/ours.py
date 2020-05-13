@@ -148,9 +148,6 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
         )
         self.conv_bias = nn.Parameter(torch.zeros(gate_hidden_size))
         self.linear2 = nn.Linear(self.task_embed_size + lower_embed_size, hidden2)
-        self.linear3 = nn.Sequential(
-            Flatten(), nn.Linear(conv_hidden_size * output_dim2 ** 2, hidden3)
-        )
 
         self.conv1 = nn.Sequential(
             nn.Conv2d(
@@ -351,7 +348,6 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
                 dim=0,
             )
             h2 = self.linear2(torch.cat([M[R, p], embedded_lower], dim=-1)).relu()
-            # h3 = self.linear3(h1.view(N, -1).relu()).relu()
             d_gate = self.d_gate(
                 torch.cat([h1.view(N, -1).relu(), h2, M[R, p]], dim=-1)
             )
@@ -375,8 +371,6 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
             # A[:] = float(input("A:"))
             # except ValueError:
             # pass
-            # hy = dg * hy_ + (1 - dg) * hy
-            # cy = dg * cy_ + (1 - dg) * cy
             yield RecurrentState(
                 a=A[t],
                 l=L[t],
