@@ -233,9 +233,6 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
 
     def inner_loop(self, raw_inputs, rnn_hxs):
         T, N, dim = raw_inputs.shape
-        # raw_inputs, actions = torch.split(
-        #     raw_inputs.detach(), [dim - self.action_size, self.action_size], dim=2
-        # )
         inputs = self.parse_input(raw_inputs)
 
         # parse non-action inputs
@@ -281,14 +278,9 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
             z = F.relu(self.zeta(zeta_input))
             a_dist = self.actor(z)
             self.sample_new(A[t], a_dist)
-            a = A[t]
             self.print("a_probs", a_dist.probs)
             # line_type, be, it, _ = lines[t][R, hx.p.long().flatten()].unbind(-1)
             # a = 3 * (it - 1) + (be - 1)
-            # print("*******")
-            # print(be, it)
-            # print(A[t])
-            # print("*******")
 
             ll_output = self.lower_level(
                 Obs(**{k: v[t] for k, v in state._asdict().items()}),
@@ -320,8 +312,8 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
             )
             lt = (fuzz * (be - 1) + (1 - fuzz) * L[t]).long()
             self.print("fuzz", fuzz, lt)
-            dg = dg.view(N, 1)
-            correct_action = ((be - 1) == lt).float()
+            # dg = dg.view(N, 1)
+            # correct_action = ((be - 1) == lt).float()
 
             embedded_lower = self.embed_lower(lt.clone())
             self.print("L[t]", L[t])
