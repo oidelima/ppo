@@ -40,21 +40,16 @@ def conv_output_dimension(h, padding, kernel, stride, dilation=1):
 class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
     def __init__(
         self,
-        hidden3,
         hidden2,
         hidden_size,
         conv_hidden_size,
-        gate_pool_stride,
-        gate_pool_kernel_size,
         gate_hidden_size,
         gate_conv_kernel_size,
-        gate_conv_hidden_size,
         gate_coef,
         gate_stride,
         observation_space,
         lower_level_load_path,
         lower_embed_size,
-        num_conv_layers,
         kernel_size,
         stride,
         concat,
@@ -82,8 +77,6 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
             action_space=action_space,
             **kwargs,
         )
-        if concat:
-            conv_hidden_size = hidden_size
         self.conv_hidden_size = conv_hidden_size
         abstract_recurrence.Recurrence.__init__(self)
         d, h, w = observation_space.obs.shape
@@ -93,22 +86,6 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
         )
         self.embed_lower = nn.Embedding(
             self.action_space_nvec.lower + 1, lower_embed_size,
-        )
-        d, h, w = observation_space.obs.shape
-        pool_input = int((h - kernel_size) / stride + 1)
-        pool_output = int((pool_input - gate_pool_kernel_size) / gate_pool_stride + 1)
-        gate_conv_hidden_size = gate_hidden_size
-        self.project_m = nn.Sequential(
-            init_(nn.Linear(self.task_embed_size, gate_hidden_size)), nn.ReLU()
-        )
-        self.gate_conv = nn.Sequential(
-            nn.MaxPool2d(kernel_size=gate_pool_kernel_size, stride=gate_pool_stride),
-            nn.Conv2d(
-                in_channels=conv_hidden_size,
-                out_channels=gate_hidden_size,
-                kernel_size=min(pool_output, gate_conv_kernel_size),
-                stride=2,
-            ),
         )
         inventory_size = self.obs_spaces.inventory.n
         inventory_hidden_size = gate_hidden_size if concat else hidden_size
@@ -123,7 +100,6 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
                 hidden_size,
             )
         )
-
         output_dim = conv_output_dimension(
             h=h,
             padding=optimal_padding(kernel_size, stride),
@@ -139,34 +115,12 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
         self.d_gate = Categorical(
             self.task_embed_size + hidden2 + gate_hidden_size * output_dim2 ** 2, 2
         )
-        kernel = min(h, gate_conv_kernel_size)
-        padding = optimal_padding(kernel, 2)
-
         self.linear1 = nn.Linear(
             self.task_embed_size,
             conv_hidden_size * gate_conv_kernel_size ** 2 * gate_hidden_size,
         )
         self.conv_bias = nn.Parameter(torch.zeros(gate_hidden_size))
         self.linear2 = nn.Linear(self.task_embed_size + lower_embed_size, hidden2)
-
-        self.conv1 = nn.Sequential(
-            nn.Conv2d(
-                in_channels=1,
-                out_channels=conv_hidden_size,
-                kernel_size=kernel,
-                padding=padding,
-                stride=2,
-            )
-        )
-        # self.conv2 = nn.Sequential(
-        #     nn.Conv2d(
-        #         in_channels=1,
-        #         out_channels=gate_conv_hidden_size,
-        #         kernel_size=kernel,
-        #         padding=padding,
-        #         stride=2,
-        #     )
-        # )
         state_sizes = self.state_sizes._asdict()
         with lower_level_config.open() as f:
             lower_level_params = json.load(f)
