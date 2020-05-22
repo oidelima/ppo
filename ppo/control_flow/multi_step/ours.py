@@ -119,7 +119,7 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
         z2_size = m_size + hidden2 + gate_hidden_size * output_dim2 ** 2
         self.d_gate = Categorical(z2_size, 2)
         self.upsilon = nn.Linear(gate_hidden_size * output_dim2 ** 2, self.ne)
-        self.critic = nn.Linear(gate_hidden_size * output_dim2 ** 2, 1)
+        self.critic = nn.Linear(m_size + gate_hidden_size * output_dim2 ** 2, 1)
         if self.use_gate_critic:
             self.gate_critic = init_(nn.Linear(z2_size, 1))
         self.linear1 = nn.Linear(
@@ -236,12 +236,12 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
             m = torch.cat([P, h], dim=-1) if self.no_pointer else M[R, p]
             zeta_input = torch.cat([m, obs_conv_output, inventory], dim=-1)
             z = F.relu(self.zeta(zeta_input))
-            a_dist = self.actor(z)
+            a_dist = self.actor(m)
             self.sample_new(A[t], a_dist)
             a = A[t]
             self.print("a_probs", a_dist.probs)
             line_type, be, it, _ = lines[t][R, hx.p.long().flatten()].unbind(-1)
-            a = 3 * (it - 1) + (be - 1)
+            # a = 3 * (it - 1) + (be - 1)
 
             ll_output = self.lower_level(
                 Obs(**{k: v[t] for k, v in state._asdict().items()}),
@@ -352,7 +352,7 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
             # A[:] = float(input("A:"))
             # except ValueError:
             # pass
-            v = self.critic(z)
+            v = self.critic(torch.cat([z, m], dim=-1))
             if self.use_gate_critic:
                 v = v + self.gate_critic(z2)
             yield RecurrentState(
