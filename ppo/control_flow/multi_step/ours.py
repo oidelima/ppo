@@ -119,7 +119,7 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
         z2_size = m_size + hidden2 + gate_hidden_size * output_dim2 ** 2
         self.d_gate = Categorical(z2_size, 2)
         self.upsilon = nn.Linear(gate_hidden_size * output_dim2 ** 2, self.ne)
-        self.critic = nn.Linear(m_size + gate_hidden_size * output_dim2 ** 2, 1)
+        self.critic = nn.Linear(m_size + z2_size, 1)
         if self.use_gate_critic:
             self.gate_critic = init_(nn.Linear(z2_size, 1))
         self.linear1 = nn.Linear(
@@ -321,17 +321,16 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
             # channel1 = state.obs[t][R, index1].sum(-1).sum(-1)
             # channel2 = state.obs[t][R, index2].sum(-1).sum(-1)
             # z = (channel1 > channel2).unsqueeze(-1).float()
-            z = h1
 
             if self.olsk or self.no_pointer:
-                h = self.upsilon(z, h)
+                h = self.upsilon(h1, h)
                 u = self.beta(h).softmax(dim=-1)
                 d_dist = gate(dg, u, ones)
                 self.sample_new(D[t], d_dist)
                 delta = D[t].clone() - 1
                 P = hx.P.transpose(0, 1)
             else:
-                u = self.upsilon(z).softmax(dim=-1)
+                u = self.upsilon(h1).softmax(dim=-1)
                 self.print("u", u)
                 w = P[p, R]
                 d_probs = (w @ u.unsqueeze(-1)).squeeze(-1)
