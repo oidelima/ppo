@@ -128,7 +128,7 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
         self.conv_bias = nn.Parameter(torch.zeros(gate_hidden_size))
         self.linear2 = nn.Linear(m_size + lower_embed_size, hidden2)
         self.linear3 = nn.Linear(
-            m_size, conv_hidden_size * gate_conv_kernel_size ** 2 * gate_hidden_size
+            m_size + lower_embed_size, conv_hidden_size * gate_conv_kernel_size ** 2 * gate_hidden_size
         )
         state_sizes = self.state_sizes._asdict()
         with lower_level_config.open() as f:
@@ -327,7 +327,7 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
                 self.gate_kernel_size,
                 self.gate_kernel_size,
             )
-            h2 = self.linear3(m).relu()
+            h2 = self.linear3(torch.cat([m, embedded_lower], dim=-1)).relu()
             z = (
                 torch.cat(
                     [
