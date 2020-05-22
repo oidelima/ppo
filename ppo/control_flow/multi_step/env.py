@@ -321,7 +321,7 @@ class Env(ppo.control_flow.env.Env):
                         legal_lines=self.control_flow_types,
                     )
                 )
-                line_types = [While, Subtask, EndWhile, Subtask]
+                line_types = [While, Subtask, EndWhile, Subtask, Subtask]
                 lines = list(self.assign_line_ids(line_types))
                 assert self.max_nesting_depth == 1
                 result = self.populate_world(lines)
