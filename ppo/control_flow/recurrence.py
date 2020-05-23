@@ -101,7 +101,7 @@ class Recurrence(nn.Module):
             out_size = self.ne * self.d_space() if self.no_scan else self.ne
             self.beta = nn.Sequential(*layers, init_(nn.Linear(in_size, out_size)))
         self.critic = init_(nn.Linear(1, 1))
-        self.actor = Categorical(10, n_a)
+        self.actor = Categorical(hidden_size, n_a)
         self.state_sizes = RecurrentState(
             a=1,
             a_probs=n_a,

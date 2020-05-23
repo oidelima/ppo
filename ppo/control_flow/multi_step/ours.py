@@ -93,7 +93,6 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
         self.embed_lower = nn.Embedding(
             self.action_space_nvec.lower + 1, lower_embed_size
         )
-        self.debug_embedding = nn.Embedding.from_pretrained(torch.eye(10))
         inventory_size = self.obs_spaces.inventory.n
         inventory_hidden_size = gate_hidden_size
         self.embed_inventory = nn.Sequential(
@@ -119,8 +118,8 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
         )
         z2_size = m_size + hidden2 + gate_hidden_size * output_dim2 ** 2
         self.d_gate = Categorical(z2_size, 2)
-        self.upsilon = nn.Linear(gate_hidden_size * output_dim2 ** 2, self.ne)
-        self.critic = nn.Linear(m_size + z2_size, 1)
+        self.upsilon = nn.Linear(gate_hidden_size, self.ne)
+        self.critic = nn.Linear(gate_hidden_size * output_dim2 ** 2, 1)
         if self.use_gate_critic:
             self.gate_critic = init_(nn.Linear(z2_size, 1))
         self.linear1 = nn.Linear(
@@ -233,10 +232,7 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
             m = torch.cat([P, h], dim=-1) if self.no_pointer else M[R, p]
             zeta_input = torch.cat([m, obs_conv_output, inventory], dim=-1)
             z = F.relu(self.zeta(zeta_input))
-            line_type, be, it, _ = lines.long()[t][R, hx.p.long().flatten()].unbind(-1)
-            is_subtask = (line_type == 0).long()
-            a = is_subtask * (3 * (it - 1) + (be - 1)) + (1 - is_subtask) * 9
-            a_dist = self.actor(self.debug_embedding(a))
+            a_dist = self.actor(z)
             self.sample_new(A[t], a_dist)
             a = A[t]
             # self.print("a_probs", a_dist.probs)
@@ -255,13 +251,14 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
                 L[t] = ll_output.action.flatten()
 
             if self.fuzz:
+                ac, be, it, _ = lines[t][R, p].long().unbind(-1)  # N, 2
                 sell = (be == 2).long()
                 channel_index = 3 * sell + (it - 1) * (1 - sell)
                 channel = state.obs[t][R, channel_index]
                 agent_channel = state.obs[t][R, -1]
                 # self.print("channel", channel)
                 # self.print("agent_channel", agent_channel)
-                is_subtask = (line_type == 0).flatten()
+                is_subtask = (ac == 0).flatten()
                 standing_on = (channel * agent_channel).view(N, -1).sum(-1)
                 # correct_action = ((be - 1) == L[t]).float()
                 # self.print("be", be)
@@ -291,25 +288,21 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
                 self.gate_kernel_size,
             )
             h2 = self.linear2(torch.cat([m, embedded_lower], dim=-1)).relu()
-            h1 = (
-                torch.cat(
-                    [
-                        F.conv2d(
-                            input=o.unsqueeze(0),
-                            weight=k,
-                            bias=self.conv_bias,
-                            stride=self.gate_stride,
-                            padding=self.gate_padding,
-                        )
-                        for o, k in zip(conv_output.unbind(0), conv_kernel.unbind(0))
-                    ],
-                    dim=0,
-                )
-                .view(N, -1)
-                .relu()
-            )
-            z = torch.cat([h1, h2, m], dim=-1)
-            d_gate = self.d_gate(z)
+            h1 = torch.cat(
+                [
+                    F.conv2d(
+                        input=o.unsqueeze(0),
+                        weight=k,
+                        bias=self.conv_bias,
+                        stride=self.gate_stride,
+                        padding=self.gate_padding,
+                    )
+                    for o, k in zip(conv_output.unbind(0), conv_kernel.unbind(0))
+                ],
+                dim=0,
+            ).relu()
+            z2 = torch.cat([h1.view(N, -1), h2, m], dim=-1)
+            d_gate = self.d_gate(z2)
             self.sample_new(DG[t], d_gate)
             dg = DG[t].unsqueeze(-1).float()
 
@@ -321,15 +314,16 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
             # channel2 = state.obs[t][R, index2].sum(-1).sum(-1)
             # z = (channel1 > channel2).unsqueeze(-1).float()
 
+            z3 = h1.sum(-1).sum(-1)
             if self.olsk or self.no_pointer:
-                h = self.upsilon(h1, h)
+                h = self.upsilon(z3, h)
                 u = self.beta(h).softmax(dim=-1)
                 d_dist = gate(dg, u, ones)
                 self.sample_new(D[t], d_dist)
                 delta = D[t].clone() - 1
                 P = hx.P.transpose(0, 1)
             else:
-                u = self.upsilon(h1).softmax(dim=-1)
+                u = self.upsilon(z3).softmax(dim=-1)
                 self.print("u", u)
                 w = P[p, R]
                 d_probs = (w @ u.unsqueeze(-1)).squeeze(-1)
@@ -350,7 +344,7 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
             # A[:] = float(input("A:"))
             # except ValueError:
             # pass
-            v = self.critic(h1)
+            v = self.critic(h1.view(N, -1))
             if self.use_gate_critic:
                 v = v + self.gate_critic(z2)
             yield RecurrentState(
