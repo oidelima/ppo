@@ -100,9 +100,11 @@ class Env(ppo.control_flow.env.Env):
         max_failure_sample_prob,
         one_condition,
         failure_buffer_size,
+        reject_while_prob,
         world_size=6,
         **kwargs,
     ):
+        self.reject_while_prob = reject_while_prob
         self.one_condition = one_condition
         self.max_failure_sample_prob = max_failure_sample_prob
         self.failure_buffer = deque(maxlen=failure_buffer_size)
@@ -277,6 +279,16 @@ class Env(ppo.control_flow.env.Env):
             elif type(line) is Loop:
                 loops += 1
             elif type(line) is While:
+                if all(
+                    (
+                        whiles == 0,  # first loop
+                        not self.evaluate_line(
+                            line, counts, [], loops
+                        ),  # evaluates false
+                        self.random.random() < self.reject_while_prob,
+                    )
+                ):
+                    return False
                 whiles += 1
                 if whiles > self.max_while_loops:
                     return False
@@ -321,7 +333,7 @@ class Env(ppo.control_flow.env.Env):
                         legal_lines=self.control_flow_types,
                     )
                 )
-                if self.evaluating or (self.random.random() < 0.5):
+                if self.evaluating or (self.random.random() < 0.7):
                     line_types = [While, Subtask, EndWhile, Subtask]
                 else:
                     line_types = [Subtask]
@@ -398,6 +410,7 @@ class Env(ppo.control_flow.env.Env):
                     term=term,
                     subtask_complete=subtask_complete,
                     use_failure_buf=use_failure_buf,
+                    condition_evaluations=condition_evaluations,
                 )
                 subtask_complete = False
                 # for i, a in enumerate(self.lower_level_actions):
@@ -595,7 +608,8 @@ class Env(ppo.control_flow.env.Env):
 
     def assign_line_ids(self, line_types):
         behaviors = self.random.choice(self.behaviors, size=len(line_types))
-        items = self.random.choice([self.gold, self.iron], size=len(line_types))
+        item_choices = [self.gold, self.iron]  # TODO
+        items = self.random.choice(item_choices, size=len(line_types))
         while_obj = None
         available = [x for x in self.items]
         lines = []
@@ -655,6 +669,7 @@ def build_parser(
     p.add_argument("--1condition", dest="one_condition", action="store_true")
     p.add_argument("--max-failure-sample-prob", type=float, required=True)
     p.add_argument("--failure-buffer-size", type=int, required=True)
+    p.add_argument("--reject-while-prob", type=float, required=True)
     p.add_argument(
         "--max-world-resamples",
         type=int,

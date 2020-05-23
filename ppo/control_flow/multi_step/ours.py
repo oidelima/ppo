@@ -128,10 +128,6 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
         )
         self.conv_bias = nn.Parameter(torch.zeros(gate_hidden_size))
         self.linear2 = nn.Linear(m_size + lower_embed_size, hidden2)
-        self.linear3 = nn.Linear(
-            m_size + lower_embed_size,
-            conv_hidden_size * gate_conv_kernel_size ** 2 * gate_hidden_size,
-        )
         state_sizes = self.state_sizes._asdict()
         with lower_level_config.open() as f:
             lower_level_params = json.load(f)
@@ -242,8 +238,10 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
             a = is_subtask * (3 * (it - 1) + (be - 1)) + (1 - is_subtask) * 9
             a_dist = self.actor(self.debug_embedding(a))
             self.sample_new(A[t], a_dist)
-            self.print("a_probs", a_dist.probs)
             a = A[t]
+            # self.print("a_probs", a_dist.probs)
+            # line_type, be, it, _ = lines[t][R, hx.p.long().flatten()].unbind(-1)
+            # a = 3 * (it - 1) + (be - 1)
 
             ll_output = self.lower_level(
                 Obs(**{k: v[t] for k, v in state._asdict().items()}),
@@ -352,7 +350,7 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
             # A[:] = float(input("A:"))
             # except ValueError:
             # pass
-            v = self.critic(torch.cat([z, m], dim=-1))
+            v = self.critic(h1)
             if self.use_gate_critic:
                 v = v + self.gate_critic(z2)
             yield RecurrentState(
