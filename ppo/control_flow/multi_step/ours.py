@@ -93,6 +93,7 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
         self.embed_lower = nn.Embedding(
             self.action_space_nvec.lower + 1, lower_embed_size
         )
+        self.debug_embedding = nn.Embedding.from_pretrained(torch.eye(10))
         inventory_size = self.obs_spaces.inventory.n
         inventory_hidden_size = gate_hidden_size
         self.embed_inventory = nn.Sequential(
@@ -236,12 +237,13 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
             m = torch.cat([P, h], dim=-1) if self.no_pointer else M[R, p]
             zeta_input = torch.cat([m, obs_conv_output, inventory], dim=-1)
             z = F.relu(self.zeta(zeta_input))
-            a_dist = self.actor(m)
+            line_type, be, it, _ = lines.long()[t][R, hx.p.long().flatten()].unbind(-1)
+            is_subtask = (line_type == 0).long()
+            a = is_subtask * (3 * (it - 1) + (be - 1)) + (1 - is_subtask) * 9
+            a_dist = self.actor(self.debug_embedding(a))
             self.sample_new(A[t], a_dist)
-            a = A[t]
             self.print("a_probs", a_dist.probs)
-            line_type, be, it, _ = lines[t][R, hx.p.long().flatten()].unbind(-1)
-            a = 3 * (it - 1) + (be - 1)
+            a = A[t]
 
             ll_output = self.lower_level(
                 Obs(**{k: v[t] for k, v in state._asdict().items()}),
@@ -255,14 +257,13 @@ class Recurrence(abstract_recurrence.Recurrence, recurrence.Recurrence):
                 L[t] = ll_output.action.flatten()
 
             if self.fuzz:
-                ac, be, it, _ = lines[t][R, p].long().unbind(-1)  # N, 2
                 sell = (be == 2).long()
                 channel_index = 3 * sell + (it - 1) * (1 - sell)
                 channel = state.obs[t][R, channel_index]
                 agent_channel = state.obs[t][R, -1]
                 # self.print("channel", channel)
                 # self.print("agent_channel", agent_channel)
-                is_subtask = (ac == 0).flatten()
+                is_subtask = (line_type == 0).flatten()
                 standing_on = (channel * agent_channel).view(N, -1).sum(-1)
                 # correct_action = ((be - 1) == L[t]).float()
                 # self.print("be", be)
