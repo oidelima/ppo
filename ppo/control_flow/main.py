@@ -83,6 +83,10 @@ def main(
                 return control_flow.multi_step.env.Env(**args)
 
         def process_infos(self, episode_counter, done, infos, **act_log):
+            for d in infos:
+                for k, v in d.items():
+                    if k.startswith("cumulative_reward"):
+                        episode_counter[k].append(v)
             if lower_level != "train-alone":
                 P = act_log.pop("P")
                 P = P[done]
@@ -96,10 +100,13 @@ def main(
             super().process_infos(episode_counter, done, infos, **act_log)
 
         def log_result(self, result: dict):
+            keys = ["progress", "rewards", "instruction_len"]
+            values = np.array(list(zip(*(iter(result[k]) for k in keys))))
+            self.table.append(values)
             if "subtasks_attempted" in result:
                 subtasks_attempted = sum(result["subtasks_attempted"])
                 if subtasks_attempted > 0:
-                    result["success"] = (
+                    result["subtask_success"] = (
                         sum(result["subtasks_complete"]) / subtasks_attempted
                     )
             try:
@@ -137,6 +144,7 @@ def control_flow_args():
     parser.add_argument("--max-eval-lines", type=int, required=True)
     parser.add_argument("--no-eval", action="store_true")
     parser.add_argument("--one-line", action="store_true")
+    parser.add_argument("--save-separate", action="store_true")
     parser.add_argument(
         "--lower-level", choices=["train-alone", "train-with-upper", "hardcoded"]
     )

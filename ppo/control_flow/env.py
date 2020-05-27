@@ -65,7 +65,7 @@ class Env(gym.Env, ABC):
         self.subtasks_only = subtasks_only
         self.no_op_limit = no_op_limit
         self._eval_condition_size = eval_condition_size
-        self._single_control_flow_type = single_control_flow_type
+        self.single_control_flow_type = single_control_flow_type
         self.max_nesting_depth = max_nesting_depth
         self.num_subtasks = num_subtasks
         self.time_to_waste = time_to_waste
@@ -164,13 +164,14 @@ class Env(gym.Env, ABC):
                     actions=actions,
                     program_counter=program_counter,
                     success=success,
+                    cumulative_reward=cumulative_reward,
+                    instruction_len=len(lines),
                 )
                 if success:
-                    info.update(success_line=len(lines), success_fraction=1)
+                    info.update(success_line=len(lines), progress=1)
                 else:
                     info.update(
-                        success_line=state.prev,
-                        success_fraction=state.prev / len(lines),
+                        success_line=state.prev, progress=state.prev / len(lines),
                     )
                 subtasks_attempted = subtasks_complete + (not success)
                 info.update(
@@ -219,15 +220,12 @@ class Env(gym.Env, ABC):
 
             self._render = render
             obs = self.get_observation(obs=state.obs, active=state.ptr, lines=lines)
-            line_specific_info = {
-                f"{k}_{10 * (len(lines) // 10)}": v for k, v in info.items()
-            }
-            action = (yield obs, reward, term, dict(**info, **line_specific_info))
+            action = (yield obs, reward, term, dict(**info))
             if action.size == 1:
                 action = Action(upper=0, lower=action, delta=0, dg=0, ptr=0)
             actions.extend([int(a) for a in action])
             action = Action(*action)
-            action, lower_level_action, agent_ptr, = (
+            action, lower_level_action, agent_ptr = (
                 int(action.upper),
                 int(action.lower),
                 int(action.ptr),
@@ -236,7 +234,7 @@ class Env(gym.Env, ABC):
             info = dict(
                 use_failure_buf=state.use_failure_buf,
                 len_failure_buffer=len(self.failure_buffer),
-                success_ratio=self.success_count / self.i,
+                successes_per_episode=self.success_count / self.i,
             )
 
             if action == self.num_subtasks:
@@ -253,10 +251,6 @@ class Env(gym.Env, ABC):
     @property
     def eval_condition_size(self):
         return self._eval_condition_size and self.evaluating
-
-    @property
-    def single_control_flow_type(self):
-        return self._single_control_flow_type and not self.evaluating
 
     def choose_line_types(self):
         if self.evaluating:

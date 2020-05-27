@@ -9,6 +9,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Dict
 
+import dataset
 import gym
 import numpy as np
 import torch
@@ -20,6 +21,7 @@ from common.atari_wrappers import wrap_deepmind
 from common.vec_env.dummy_vec_env import DummyVecEnv
 from common.vec_env.subproc_vec_env import SubprocVecEnv
 from ppo.agent import Agent, AgentValues
+from ppo.control_flow.hdfstore import HDF5Store
 from ppo.storage import RolloutStorage
 from ppo.update import PPO
 from ppo.utils import k_scalar_pairs, get_n_gpu, get_random_gpu
@@ -230,9 +232,17 @@ class TrainBase(abc.ABC):
                     self.rollouts.obs[-1],
                     self.rollouts.recurrent_hidden_states[-1],
                     self.rollouts.masks[-1],
-                ).detach()
+                )
 
-            self.rollouts.compute_returns(next_value=next_value)
+            for vp, v in zip(
+                [
+                    self.rollouts.value_preds,
+                    self.rollouts.value_preds2,
+                    self.rollouts.value_preds3,
+                ],
+                [x.detach() for x in next_value],
+            ):
+                self.rollouts.compute_returns(vp, v)
             train_results = self.ppo.update(self.rollouts)
             self.rollouts.after_update()
             if log_progress is not None:
@@ -296,7 +306,11 @@ class TrainBase(abc.ABC):
                     recurrent_hidden_states=act.rnn_hxs,
                     actions=act.action,
                     action_log_probs=act.action_log_probs,
+                    action_log_probs2=act.action_log_probs2,
+                    action_log_probs3=act.action_log_probs3,
                     values=act.value,
+                    values2=act.value2,
+                    values3=act.value3,
                     rewards=reward,
                     masks=masks,
                 )
@@ -403,7 +417,9 @@ class TrainBase(abc.ABC):
         # if isinstance(self.envs.venv, VecNormalize):
         #     modules.update(vec_normalize=self.envs.venv)
         state_dict = {name: module.state_dict() for name, module in modules.items()}
-        save_path = Path(checkpoint_dir, "checkpoint.pt")
+        save_path = Path(
+            checkpoint_dir, f"{self.i if self.save_separate else 'checkpoint'}.pt"
+        )
         torch.save(dict(step=self.i, **state_dict), save_path)
         print(f"Saved parameters to {save_path}")
         return str(save_path)
@@ -431,8 +447,10 @@ class Train(TrainBase):
         save_interval: int,
         num_processes: int,
         num_steps: int,
+        save_separate: bool,
         **kwargs,
     ):
+        self.save_separate = save_separate
         self.num_steps = num_steps
         self.num_processes = num_processes
         self.run_id = run_id
@@ -440,8 +458,10 @@ class Train(TrainBase):
         self.log_dir = log_dir
         if log_dir:
             self.writer = SummaryWriter(logdir=str(log_dir))
+            self.table = HDF5Store(datapath=str(Path(log_dir, "table")))
         else:
             self.writer = None
+            self.table = None
         self.setup(**kwargs, num_processes=num_processes, num_steps=num_steps)
         self.last_save = time.time()  # dummy save
 
@@ -451,11 +471,7 @@ class Train(TrainBase):
                 if self.writer is not None:
                     self.log_result(result)
 
-                if (
-                    self.log_dir
-                    and self.save_interval
-                    and (time.time() - self.last_save >= self.save_interval)
-                ):
+                if self.log_dir and self.i % self.save_interval == 0:
                     self._save(str(self.log_dir))
                     self.last_save = time.time()
 
