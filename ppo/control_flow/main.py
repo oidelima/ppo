@@ -103,7 +103,9 @@ def main(
             keys = ["progress", "rewards", "instruction_len"]
             values = np.array(list(zip(*(iter(result[k]) for k in keys))))
             total_num_steps = (self.i + 1) * self.num_processes * self.num_steps
-            values = np.pad(values, (1, 0), "constant", constant_values=total_num_steps)
+            values = np.pad(
+                values, ((0, 0), (1, 0)), "constant", constant_values=total_num_steps
+            )
             self.table.append(values)
             if "subtasks_attempted" in result:
                 subtasks_attempted = sum(result["subtasks_attempted"])
@@ -161,23 +163,14 @@ def control_flow_args():
     parsers.agent.add_argument("--olsk", action="store_true")
     parsers.agent.add_argument("--transformer", action="store_true")
     parsers.agent.add_argument("--fuzz", action="store_true")
-    parsers.agent.add_argument(
-        "--critic-type",
-        choices=["z", "z3", "h1", "combined", "multi-layer"],
-        required=True,
-    )
-    parsers.agent.add_argument("--hidden2", type=int, required=True)
     parsers.agent.add_argument("--conv-hidden-size", type=int, required=True)
     parsers.agent.add_argument("--task-embed-size", type=int, required=True)
     parsers.agent.add_argument("--lower-embed-size", type=int, required=True)
-    parsers.agent.add_argument("--gate-hidden-size", type=int, required=True)
-    parsers.agent.add_argument("--gate-stride", type=int, required=True)
-    parsers.agent.add_argument("--num-encoding-layers", type=int, required=True)
+    parsers.agent.add_argument("--inventory-hidden-size", type=int, required=True)
     parsers.agent.add_argument("--num-conv-layers", type=int, required=True)
     parsers.agent.add_argument("--num-edges", type=int, required=True)
     parsers.agent.add_argument("--gate-coef", type=float, required=True)
     parsers.agent.add_argument("--no-op-coef", type=float, required=True)
-    parsers.agent.add_argument("--gate-conv-kernel-size", type=int, required=True)
     parsers.agent.add_argument("--kernel-size", type=int, required=True)
     parsers.agent.add_argument("--stride", type=int, required=True)
     return parser
