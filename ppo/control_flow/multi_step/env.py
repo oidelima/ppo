@@ -287,7 +287,7 @@ class Env(ppo.control_flow.env.Env):
                         not self.evaluate_line(
                             line, counts, [], loops
                         ),  # evaluates false
-                        not self.evaluating,
+                        # not self.evaluating,
                         self.random.random() < self.reject_while_prob,
                     )
                 ):
@@ -382,10 +382,7 @@ class Env(ppo.control_flow.env.Env):
                         e = self.evaluate_line(
                             lines[l], counts, condition_evaluations, self.loops
                         )
-                        # if e:
-                        # import ipdb
-
-                        # ipdb.set_trace()
+                        # if e: import ipdb ;ipdb.set_trace()
                         l = line_iterator.send(e)
                         if self.loops == 0:
                             self.loops = None
