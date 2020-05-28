@@ -340,7 +340,7 @@ class Env(ppo.control_flow.env.Env):
                     )
                 )
                 if self.evaluating or (self.random.random() < 0.5):
-                    line_types = [If, Subtask, Else, Subtask, EndIf]
+                    line_types = [While, Subtask, EndWhile, Subtask]
                 else:
                     line_types = [Subtask]
                 lines = list(self.assign_line_ids(line_types))
