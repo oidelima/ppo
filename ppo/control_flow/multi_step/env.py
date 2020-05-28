@@ -331,57 +331,18 @@ class Env(ppo.control_flow.env.Env):
                     if self.evaluating
                     else self.random.random_integers(self.min_lines, self.max_lines)
                 )
-                if self.long_jump:
-                    assert self.evaluating
-                    len_jump = self.random.randint(
-                        self.min_eval_lines - 3, self.max_eval_lines - 3
+                line_types = list(
+                    Line.generate_types(
+                        n_lines,
+                        remaining_depth=self.max_nesting_depth,
+                        random=self.random,
+                        legal_lines=self.control_flow_types,
                     )
-                    use_if = self.random.random() < 0.5
-                    line_types = [
-                        If if use_if else While,
-                        *(Subtask for _ in range(len_jump)),
-                        EndIf if use_if else EndWhile,
-                        Subtask,
-                    ]
-                elif False:  # self.single_control_flow_type and self.evaluating:
-                    assert n_lines >= 6
-                    line_types = [If, Subtask, EndIf, While, Subtask, EndWhile]
-
-                    # while True:
-                    # line_types = list(
-                    # Line.generate_types(
-                    # n_lines,
-                    # remaining_depth=self.max_nesting_depth,
-                    # random=self.random,
-                    # legal_lines=self.control_flow_types,
-                    # )
-                    # )
-                    # criteria = [
-                    # Else in line_types,  # Else
-                    # While in line_types,  # While
-                    # line_types.count(If) > line_types.count(Else),  # If
-                    # ]
-                    # if sum(criteria) >= 2:
-                    # break
+                )
+                if self.evaluating or (self.random.random() < 0.5):
+                    line_types = [While, Subtask, EndWhile, Subtask]
                 else:
-                    legal_lines = (
-                        [
-                            self.random.choice(
-                                list(set(self.control_flow_types) - {Subtask})
-                            ),
-                            Subtask,
-                        ]
-                        if (self.single_control_flow_type and not self.evaluating)
-                        else self.control_flow_types
-                    )
-                    line_types = list(
-                        Line.generate_types(
-                            n_lines,
-                            remaining_depth=self.max_nesting_depth,
-                            random=self.random,
-                            legal_lines=legal_lines,
-                        )
-                    )
+                    line_types = [Subtask]
                 lines = list(self.assign_line_ids(line_types))
                 assert self.max_nesting_depth == 1
                 result = self.populate_world(lines)
